@@ -4,7 +4,7 @@ export default function Card({ course, viewCourse, editCourse, deleteCourse }) {
   const currentCourse = course;
 
   return (
-    <div class="card" style={{ width: "18rem", height: "100%" }}>
+    <div className="card" style={{ width: "18rem", height: "100%" }}>
       <div
         className="col align-items-center justify-content-center"
         style={{
@@ -25,8 +25,8 @@ export default function Card({ course, viewCourse, editCourse, deleteCourse }) {
         />
       </div>
 
-      <div class="card-body" style={{ height: "60%" }}>
-        <h5 class="card-title text-center">{course?.name}</h5>
+      <div className="card-body" style={{ height: "60%" }}>
+        <h5 className="card-title text-center">{course?.name}</h5>
         <div className="d-flex justify-content-center gap-2 p-2">
           <button
             className="btn btn-danger"

@@ -4,9 +4,13 @@ export const getCourses = async () => {
   return await api.get("/courses");
 };
 
-export const createCourse = async ({ name, description, category_Id }) => {
+export const createCourse = async ({
+  courseName,
+  description,
+  category_Id,
+}) => {
   const response = await api.post(`/course/${category_Id}`, {
-    name,
+    name: courseName,
     description,
   });
   return response;

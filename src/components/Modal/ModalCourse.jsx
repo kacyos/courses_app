@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { BsPlusCircle, BsXCircle } from "react-icons/bs";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { Tooltip } from "react-tooltip";
@@ -12,21 +13,30 @@ import {
 
 export function ModalCourse({ course, type }) {
   const [image, setImage] = useState("");
-  const [name, setName] = useState("");
+  const [categoryName, setCategoryName] = useState("");
+  const [courseName, setCourseName] = useState("");
+
   const [description, setDescription] = useState("");
   const [category_Id, setCategory_Id] = useState(0);
 
-  const [allCategories, setAllCategories] = useState([]);
   const [isAddCategory, setIsAddCategory] = useState(false);
 
-  const notify = (type, message) => {
-    if (type === "success") {
+  const {
+    isLoading,
+    error,
+    data: categories,
+  } = useQuery("allCategories", async () => await getAllCategories());
+
+  const client = useQueryClient();
+
+  const notify = (typeMessage, message) => {
+    if (typeMessage === "success") {
       return toast.success(message, {
         position: toast.POSITION.TOP_CENTER,
       });
     }
 
-    if (type === "alert") {
+    if (typeMessage === "alert") {
       return toast.warning(message, {
         position: toast.POSITION.TOP_CENTER,
       });
@@ -37,74 +47,97 @@ export function ModalCourse({ course, type }) {
     });
   };
 
-  const handleEdit = async (e) => {
-    e.preventDefault();
-    const formData = new FormData();
+  const createCategoryMutation = useMutation(
+    async () => await createCategory({ categoryName }),
+    {
+      onSuccess: () => {
+        notify("success", "Categoria criada com sucesso!");
+        client.invalidateQueries(["allCategories"]);
+      },
+      onError: (error) => {
+        notify("error", `${error?.response.data.message}`);
+      },
+    }
+  );
 
-    formData.append("file", image);
+  const createCourseMutation = useMutation(
+    async () => {
+      const newCourse = await createCourse({
+        courseName,
+        description,
+        category_Id,
+      });
+      if (!!image) {
+        const formData = new FormData();
+        formData.append("file", image);
+        await addImage(newCourse.data.id, formData);
+      }
+    },
 
-    try {
-      const courseName = name || course.name;
+    {
+      onSuccess: () => {
+        notify("success", "Curso adicionado com sucesso!");
+        client.invalidateQueries(["allCourses"]);
+        document.getElementById("form-course").reset();
+      },
+      onError: (error) => {
+        console.log(error);
+        notify("error", `${error?.response.data.message}`);
+      },
+    }
+  );
 
+  const editCourseMutation = useMutation(
+    async () => {
       await editCourse(course.id, {
-        name: courseName,
+        name: courseName || course.name,
         description,
         category_Id,
       });
 
       if (!!image) {
+        const formData = new FormData();
+        formData.append("file", image);
         await addImage(course.id, formData);
       }
-      document.location.reload();
-    } catch (error) {
-      const message = error?.response?.data.message;
-      notify("error", message);
+    },
+    {
+      onSuccess: () => {
+        notify("success", "Curso atualizado com sucesso!");
+        client.invalidateQueries(["allCourses"]);
+        document.getElementById("form-course").reset();
+      },
+      onError: () => {
+        notify("error", "Falha ao atualizar curso.");
+      },
     }
+  );
+
+  const handleEdit = async (e) => {
+    e.preventDefault();
+    editCourseMutation.mutate();
   };
 
   const handleCreate = async (e) => {
     e.preventDefault();
-
     if (!category_Id) {
       notify("alert", "Selecione uma categoria.");
       return;
     }
 
-    if (!name) {
+    if (!courseName) {
       notify("alert", "Dê um nome ao curso.");
       return;
     }
 
-    const formData = new FormData();
-    formData.append("file", image);
-
-    try {
-      const response = await createCourse({ name, description, category_Id });
-
-      if (!!image) {
-        await addImage(response.data.id, formData);
-      }
-
-      document.location.reload();
-    } catch (error) {
-      const message = error?.response?.data.message;
-      notify("error", message);
-    }
+    createCourseMutation.mutate();
   };
 
   const handleAddCategory = async (e) => {
     e.preventDefault();
-    try {
-      const response = await createCategory({ name });
-      const message = response?.data.message;
-
-      setIsAddCategory(!isAddCategory);
-
-      notify("success", message);
-    } catch (error) {
-      const message = error?.response?.data.message;
-      notify("error", message);
-    }
+    setCategoryName("");
+    setIsAddCategory(false);
+    createCategoryMutation.mutate();
   };
 
   const handleSubmit = (e) => {
@@ -115,45 +148,35 @@ export function ModalCourse({ course, type }) {
     }
   };
 
-  const getCategories = async () => {
-    try {
-      const { data } = await getAllCategories();
-      setAllCategories(data);
-      console.log(data);
-    } catch (error) {
-      console.log(error);
-    }
-  };
-
-  useEffect(() => {
-    getCategories();
-  }, []);
+  if (isLoading) {
+    return;
+  }
 
   return (
     <div
       className="modal fade"
-      id="edit"
+      id={"edit"}
       data-bs-backdrop="static"
       data-bs-keyboard="false"
-      tabindex="-1"
+      tabIndex="-1"
       aria-labelledby="staticBackdropLabel"
       aria-hidden="true"
     >
+      <ToastContainer />
       <div className="modal-dialog modal-dialog-centered">
         <div className="modal-content">
           <div className="modal-body">
-            <div classNameName="modal-header">
+            <div className="modal-header">
               <h5>
                 {type === "edit"
                   ? `Editar curso ${course.name}`
                   : "Adicionar curso"}
               </h5>
             </div>
-            <form onSubmit={handleSubmit}>
-              <ToastContainer />
+            <form id="form-course" onSubmit={handleSubmit}>
               {/***** Imagem **********/}
               <div className="mb-3">
-                <label for="formFile" className="form-label">
+                <label htmlFor="formFile" className="form-label">
                   Imagem do curso
                 </label>
                 <input
@@ -169,7 +192,7 @@ export function ModalCourse({ course, type }) {
                 {isAddCategory ? (
                   <div className="mb-3">
                     <label
-                      for="exampleFormControlInput1"
+                      htmlFor="exampleFormControlInput1"
                       className="form-label"
                     >
                       Adicionar categoria
@@ -179,7 +202,7 @@ export function ModalCourse({ course, type }) {
                         <input
                           type="text"
                           className="form-control"
-                          onChange={(e) => setName(e.target.value)}
+                          onChange={(e) => setCategoryName(e.target.value)}
                           id="exampleFormControlInput1"
                           placeholder="Ex: Programação"
                         />
@@ -221,9 +244,14 @@ export function ModalCourse({ course, type }) {
                       aria-label="select category"
                       onChange={(e) => setCategory_Id(e.target.value)}
                     >
-                      <option selected>Selecione uma categoria</option>
-                      {allCategories.map((category) => (
-                        <option value={category.id}>{category.name}</option>
+                      <option defaultValue>Selecione uma categoria</option>
+                      {categories.data.map((category) => (
+                        <option
+                          key={category.name + category.id}
+                          value={category.id}
+                        >
+                          {category.name}
+                        </option>
                       ))}
                     </select>
 
@@ -245,13 +273,16 @@ export function ModalCourse({ course, type }) {
 
               {/*****  Nome do curso **********/}
               <div className="mb-3">
-                <label for="exampleFormControlInput1" className="form-label">
+                <label
+                  htmlFor="exampleFormControlInput1"
+                  className="form-label"
+                >
                   Nome do curso
                 </label>
                 <input
                   type="text"
                   className="form-control"
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) => setCourseName(e.target.value)}
                   id="exampleFormControlInput1"
                   placeholder="nome do curso"
                 />
@@ -259,7 +290,10 @@ export function ModalCourse({ course, type }) {
 
               {/*****  Descrição do curso **********/}
               <div className="mb-3">
-                <label for="exampleFormControlTextarea1" className="form-label">
+                <label
+                  htmlFor="exampleFormControlTextarea1"
+                  className="form-label"
+                >
                   Descrição
                 </label>
                 <textarea

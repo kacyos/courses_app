@@ -1,7 +1,7 @@
 import { api } from "../api";
 
-export const createCategory = async ({ name }) => {
-  const response = await api.post(`/category`, { name });
+export const createCategory = async ({ categoryName }) => {
+  const response = await api.post(`/category`, { name: categoryName });
   return response;
 };
 

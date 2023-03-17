@@ -1,15 +1,35 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { BsPlusCircle } from "react-icons/bs";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { deleteCourse, getCourses } from "./api/requests/coursers.js";
-import Card from "./components/Card";
+import Card from "./components/Card/index";
+import { Loading } from "./components/Loading";
 import { ModalCourse } from "./components/Modal/ModalCourse";
 import { ModalViewCourse } from "./components/Modal/ModalViewCourse";
 import NavBar from "./components/NavBar";
 
 function App() {
-  const [allCourses, setAllCourses] = useState([]);
   const [courseSelected, setCourseSelected] = useState(false);
   const [typeModal, setTypeModal] = useState("");
+  const {
+    isLoading,
+    error,
+    data: courses,
+  } = useQuery("allCourses", async () => await getCourses());
+
+  const client = useQueryClient();
+
+  const deleteCourseMutation = useMutation(
+    async (id) => await deleteCourse(id),
+    {
+      onSuccess: () => {
+        client.invalidateQueries(["allCourses"]);
+      },
+      onError: () => {
+        console.log("error");
+      },
+    }
+  );
 
   const openSelectedModal = (modalType) => {
     const modal = new window.bootstrap.Modal(
@@ -42,22 +62,13 @@ function App() {
     openSelectedModal("edit");
   };
 
-  const deleteCurseById = async (id) => {
-    console.log(id);
-    await deleteCourse(id);
-    document.location.reload(true);
-    return;
+  const deleteCurseById = (id) => {
+    deleteCourseMutation.mutate(id);
   };
 
-  useEffect(() => {
-    getAllCourses();
-  }, []);
-
-  const getAllCourses = async () => {
-    const { data } = await getCourses();
-    console.log(data);
-    setAllCourses(data);
-  };
+  if (error) {
+    return "<Loading />";
+  }
 
   return (
     <div className="bs-tertiary-bg">
@@ -76,21 +87,30 @@ function App() {
             <BsPlusCircle fontSize={20} />
           </button>
         </div>
+        {isLoading ? (
+          <div className="d-flex flex-wrap gap-4 justify-content-center">
+            <Loading />
+          </div>
+        ) : (
+          <>
+            <div className="d-flex flex-wrap gap-4 justify-content-center">
+              <>
+                {courses.data.map((course) => (
+                  <Card
+                    key={course.id}
+                    course={course}
+                    viewCourse={viewCourse}
+                    editCourse={editCourse}
+                    deleteCourse={deleteCurseById}
+                  />
+                ))}
+              </>
+            </div>
 
-        <div className="d-flex flex-wrap gap-4 justify-content-center">
-          {allCourses.map((course) => (
-            <Card
-              key={course.id}
-              course={course}
-              viewCourse={viewCourse}
-              editCourse={editCourse}
-              deleteCourse={deleteCurseById}
-            />
-          ))}
-        </div>
-
-        <ModalViewCourse course={courseSelected} />
-        <ModalCourse course={courseSelected} type={typeModal} />
+            <ModalViewCourse course={courseSelected} />
+            <ModalCourse course={courseSelected} type={typeModal} />
+          </>
+        )}
       </section>
     </div>
   );
